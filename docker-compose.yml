@@ -1,0 +1,65 @@
+version: '3.9'
+
+services:
+  backend:
+    build:
+      context: ./backend
+    volumes:
+      - ./backend:/app
+      - media_volume:/vol/web/media
+      - static_volume:/vol/web/static
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env # Root-level shared environment variables
+      - ./backend/.env # Backend-specific environment variables
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - DB_ENGINE=django.db.backends.postgresql
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
+      - DJANGO_DEBUG=${DJANGO_DEBUG}
+      - DJANGO_ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS}
+      - CORS_ALLOW_ALL_ORIGINS=True
+      - RUNNING_IN_DOCKER=true # ✅ NEW LINE ADDED HERE
+    depends_on:
+      - db
+      - redis
+    command: >
+      sh -c "
+        python manage.py migrate &&
+        python manage.py collectstatic --noinput &&
+        python manage.py runserver 0.0.0.0:8000
+      "
+
+  db:
+    image: postgres:15
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+
+  redis:
+    image: redis:7
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "3000:80"
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  media_volume:
+  static_volume:
